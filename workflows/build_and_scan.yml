@@ -47,7 +47,7 @@ jobs:
       - name: Push Docker Image
         #if: success() # Nur ausführen wenn vorherige Steps erfolgreich waren
         env:
-          IMAGE_NAME: trial3i8n2w.jfrog.io/docker-local/my-app:${{ github.run_number }}
+          IMAGE_NAME: trial3i8n2w.jfrog.io/testpet-docker/jfrog-docker-petclinic-image:${{ github.run_number }}
         run: |
           jf docker push $IMAGE_NAME
 
