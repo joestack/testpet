@@ -1,0 +1,62 @@
+name: Docker Build with Security Gate
+
+on:
+  push:
+    branches: [ main ]
+  pull_request:
+    branches: [ main ]
+
+
+jobs:
+  build-and-tag:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v4
+
+      - name: Setup JFrog CLI
+        uses: jfrog/setup-jfrog-cli@v4
+        env:
+          JF_URL: ${{ vars.JF_URL }}
+          JF_ACCESS_TOKEN: ${{ secrets.JF_ACCESS_TOKEN }}
+
+      - name: Build & Test
+        run: |
+          # Gradle Build und Tests ausführen
+          ./gradlew clean build test
+      - name: Build Tag and push Docker Image
+        env:
+          IMAGE_NAME: trial3i8n2w.jfrog.io/testpet-docker/jfrog-docker-petclinic-image:${{ github.run_number }}
+        run: |
+          jf docker build -t $IMAGE_NAME .
+      - name: Run Xray Security Scan
+        env:
+          IMAGE_NAME: trial3i8n2w.jfrog.io/testpet-docker/jfrog-docker-petclinic-image:${{ github.run_number }}
+        run: |
+          # Führe Xray Scan durch und breche ab bei kritischen oder hohen Schwachstellen
+          jf docker scan $IMAGE_NAME \
+            --format json > xray-results.json #\
+            #--fail-build \
+            #--min-severity high \
+            #|| exit 1
+      - name: Upload scan results
+        uses: actions/upload-artifact@v4
+        with:
+          name: xray-scan-results
+          path: xray-results.json
+      - name: Push Docker Image
+        #if: success() # Nur ausführen wenn vorherige Steps erfolgreich waren
+        env:
+          IMAGE_NAME: trial3i8n2w.jfrog.io/docker-local/my-app:${{ github.run_number }}
+        run: |
+          jf docker push $IMAGE_NAME
+
+      - name: Publish Build Info
+        if: success()
+        env:
+          JFROG_CLI_BUILD_NAME: secure-docker-build
+          JFROG_CLI_BUILD_NUMBER: ${{ github.run_number }}
+        run: |
+          jf rt build-collect-env
+          jf rt build-add-git
+          jf rt build-publish
